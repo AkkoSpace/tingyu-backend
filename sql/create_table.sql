@@ -1,10 +1,10 @@
 # 建表脚本
 
 -- 创建库
-create database if not exists my_db;
+create database if not exists tingyu;
 
 -- 切换库
-use my_db;
+use tingyu;
 
 -- 用户表
 create table if not exists user

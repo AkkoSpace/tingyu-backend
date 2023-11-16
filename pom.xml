@@ -10,9 +10,9 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>space.akko</groupId>
-    <artifactId>springboot-init</artifactId>
+    <artifactId>tingyu</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>springboot-init</name>
+    <name>tingyu</name>
     <properties>
         <java.version>1.8</java.version>
     </properties>
