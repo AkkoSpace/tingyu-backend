@@ -2,12 +2,11 @@ package space.akko.springbootinit.model.vo;
 
 import java.io.Serializable;
 import java.util.Date;
+
 import lombok.Data;
 
 /**
  * 已登录用户视图（脱敏）
- *
-
  **/
 @Data
 public class LoginUserVO implements Serializable {
