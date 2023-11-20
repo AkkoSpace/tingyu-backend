@@ -18,7 +18,6 @@ import space.akko.springbootinit.constant.UserConstant;
 import space.akko.springbootinit.exception.BusinessException;
 import space.akko.springbootinit.exception.ThrowUtils;
 import space.akko.springbootinit.model.dto.user.*;
-import space.akko.springbootinit.model.entity.TokenUser;
 import space.akko.springbootinit.model.entity.User;
 import space.akko.springbootinit.model.vo.LoginUserVO;
 import space.akko.springbootinit.model.vo.UserVO;
@@ -35,7 +34,6 @@ import java.util.List;
  * @author Akko
  */
 @RestController
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
 @RequestMapping("/user")
 @Slf4j
 public class UserController {
@@ -77,7 +75,7 @@ public class UserController {
      * @return
      */
     @PostMapping("/login")
-    public BaseResponse<TokenUser> userLogin(@RequestBody UserLoginRequest userLoginRequest, HttpServletRequest request) {
+    public BaseResponse<String> userLogin(@RequestBody UserLoginRequest userLoginRequest, HttpServletRequest request) {
         if (userLoginRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
@@ -86,8 +84,8 @@ public class UserController {
         if (StringUtils.isAnyBlank(userAccount, userPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        TokenUser tokenUser = userService.userLogin(userAccount, userPassword, request);
-        return ResultUtils.success(tokenUser);
+        String token = userService.userLogin(userAccount, userPassword, request);
+        return ResultUtils.success(token);
     }
 
     /**
@@ -128,12 +126,12 @@ public class UserController {
     }
 
     /**
-     * 获取当前登录用户
+     * 获取当前登录用户信息
      *
      * @param request
      * @return
      */
-    @GetMapping("/get/login")
+    @GetMapping("/info")
     public BaseResponse<LoginUserVO> getLoginUser(HttpServletRequest request) {
         User user = userService.getLoginUser(request);
         return ResultUtils.success(userService.getLoginUserVO(user));
