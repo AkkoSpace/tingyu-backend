@@ -1,33 +1,36 @@
 package space.akko.springbootinit.service.impl;
 
-import static space.akko.springbootinit.constant.UserConstant.USER_LOGIN_STATE;
-
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import space.akko.springbootinit.common.ErrorCode;
-import space.akko.springbootinit.constant.CommonConstant;
-import space.akko.springbootinit.exception.BusinessException;
-import space.akko.springbootinit.mapper.UserMapper;
-import space.akko.springbootinit.model.dto.user.UserQueryRequest;
-import space.akko.springbootinit.model.entity.User;
-import space.akko.springbootinit.model.enums.UserRoleEnum;
-import space.akko.springbootinit.model.vo.LoginUserVO;
-import space.akko.springbootinit.model.vo.UserVO;
-import space.akko.springbootinit.service.UserService;
-import space.akko.springbootinit.utils.SqlUtils;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
-import javax.servlet.http.HttpServletRequest;
-
 import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.common.bean.WxOAuth2UserInfo;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
+import space.akko.springbootinit.common.ErrorCode;
+import space.akko.springbootinit.constant.CommonConstant;
+import space.akko.springbootinit.exception.BusinessException;
+import space.akko.springbootinit.mapper.UserMapper;
+import space.akko.springbootinit.model.dto.user.UserQueryRequest;
+import space.akko.springbootinit.model.entity.TokenUser;
+import space.akko.springbootinit.model.entity.User;
+import space.akko.springbootinit.model.enums.UserRoleEnum;
+import space.akko.springbootinit.model.vo.LoginUserVO;
+import space.akko.springbootinit.model.vo.UserVO;
+import space.akko.springbootinit.service.UserService;
+import space.akko.springbootinit.utils.JwtUtils;
+import space.akko.springbootinit.utils.SqlUtils;
+
+import javax.servlet.http.HttpServletRequest;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import static space.akko.springbootinit.constant.UserConstant.USER_LOGIN_STATE;
 
 /**
  * 用户服务实现
@@ -80,7 +83,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
-    public LoginUserVO userLogin(String userAccount, String userPassword, HttpServletRequest request) {
+    public TokenUser userLogin(String userAccount, String userPassword, HttpServletRequest request) {
         // 1. 校验
         if (StringUtils.isAnyBlank(userAccount, userPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空");
@@ -103,9 +106,15 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             log.info("user login failed, userAccount cannot match userPassword");
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户不存在或密码错误");
         }
-        // 3. 记录用户的登录态
-        request.getSession().setAttribute(USER_LOGIN_STATE, user);
-        return this.getLoginUserVO(user);
+        // 3. 生成 token
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", user.getId());
+        map.put("userRole", user.getUserRole());
+        String token = JwtUtils.generateToken(map);
+        TokenUser tokenUser = new TokenUser();
+        tokenUser.setToken(token);
+        tokenUser.setUser(user);
+        return tokenUser;
     }
 
     @Override
@@ -208,12 +217,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public boolean userLogout(HttpServletRequest request) {
-        if (request.getSession().getAttribute(USER_LOGIN_STATE) == null) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "未登录");
+        // 从请求中获取Authorization信息
+        System.out.println("request.getHeader(Authorization): " + request.getHeader("Authorization"));
+        String token = request.getHeader("Authorization");
+        if (StringUtils.isBlank(token)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "未登录");
+        } else {
+            return true;
         }
-        // 移除登录态
-        request.getSession().removeAttribute(USER_LOGIN_STATE);
-        return true;
     }
 
     @Override
@@ -264,8 +275,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         queryWrapper.eq(StringUtils.isNotBlank(userRole), "userRole", userRole);
         queryWrapper.like(StringUtils.isNotBlank(userProfile), "userProfile", userProfile);
         queryWrapper.like(StringUtils.isNotBlank(userName), "userName", userName);
-        queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
-                sortField);
+        queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC), sortField);
         return queryWrapper;
     }
 }

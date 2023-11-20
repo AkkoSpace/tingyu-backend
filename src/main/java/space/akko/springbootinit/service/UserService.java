@@ -2,13 +2,15 @@ package space.akko.springbootinit.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.IService;
+import me.chanjar.weixin.common.bean.WxOAuth2UserInfo;
 import space.akko.springbootinit.model.dto.user.UserQueryRequest;
+import space.akko.springbootinit.model.entity.TokenUser;
 import space.akko.springbootinit.model.entity.User;
 import space.akko.springbootinit.model.vo.LoginUserVO;
 import space.akko.springbootinit.model.vo.UserVO;
-import java.util.List;
+
 import javax.servlet.http.HttpServletRequest;
-import me.chanjar.weixin.common.bean.WxOAuth2UserInfo;
+import java.util.List;
 
 /**
  * 用户服务
@@ -33,7 +35,7 @@ public interface UserService extends IService<User> {
      * @param request
      * @return 脱敏后的用户信息
      */
-    LoginUserVO userLogin(String userAccount, String userPassword, HttpServletRequest request);
+    TokenUser userLogin(String userAccount, String userPassword, HttpServletRequest request);
 
     /**
      * 用户登录（微信开放平台）
