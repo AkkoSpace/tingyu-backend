@@ -19,13 +19,18 @@ public class JwtUtils {
     /**
      * 生成 JWT
      *
-     * @param map 自定义信息
+     * @param payload 载荷
      * @return token
      */
 
-    public static String generateToken(Map<String, Object> payload) {
+    public static String generateToken(String type, Map<String, Object> payload) {
         DateTime now = DateTime.now();
-        DateTime newTime = now.offsetNew(DateField.MINUTE, 10);
+        DateTime newTime = DateTime.now();
+        if ("access".equals(type)) {
+            newTime = now.offsetNew(DateField.MINUTE, 10);
+        } else if ("refresh".equals(type)) {
+            newTime = now.offsetNew(DateField.HOUR, 24 * 7);
+        }
         // 签发时间
         payload.put(RegisteredPayload.ISSUED_AT, now);
         // 过期时间

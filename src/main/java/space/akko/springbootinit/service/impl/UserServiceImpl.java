@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.common.bean.WxOAuth2UserInfo;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 import space.akko.springbootinit.common.ErrorCode;
@@ -30,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static space.akko.springbootinit.constant.CommonConstant.TOKEN_TYPE_ACCESS;
+import static space.akko.springbootinit.constant.CommonConstant.TOKEN_TYPE_REFRESH;
 import static space.akko.springbootinit.constant.UserConstant.USER_LOGIN_STATE;
 
 /**
@@ -43,6 +47,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * 盐值，混淆密码
      */
     private static final String SALT = "tingyu";
+    @Autowired
+    StringRedisTemplate stringRedisTemplate;
 
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
@@ -106,11 +112,32 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             log.info("user login failed, userAccount cannot match userPassword");
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户不存在或密码错误");
         }
-        // 3. 生成 token
+        // 3. 生成 refreshToken
         Map<String, Object> map = new HashMap<>();
         map.put("id", user.getId());
         map.put("userRole", user.getUserRole());
-        return JwtUtils.generateToken(map);
+        String refreshToken = JwtUtils.generateToken(TOKEN_TYPE_REFRESH, map);
+        // 4. 将 refreshToken 存入 redis
+        this.stringRedisTemplate.opsForValue().set(CommonConstant.REFRESH_TOKEN_PREFIX + user.getId(), refreshToken, 7, TimeUnit.DAYS);
+        return JwtUtils.generateToken(TOKEN_TYPE_ACCESS, map);
+    }
+
+    @Override
+    public String userAuth(HttpServletRequest request) {
+        // 获取返回的 token
+        String token = request.getHeader("Authorization");
+        // 去掉 Bearer
+        if (token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+        // 判断 token 是否为空
+        if (StringUtils.isBlank(token)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "未登录");
+        }
+        // 校验 token
+        if (!JwtUtils.verifyToken(token)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "Token 异常");
+        }
     }
 
     @Override
