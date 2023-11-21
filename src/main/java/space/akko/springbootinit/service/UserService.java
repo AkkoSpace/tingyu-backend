@@ -36,6 +36,8 @@ public interface UserService extends IService<User> {
      */
     String userLogin(String userAccount, String userPassword, HttpServletRequest request);
 
+    String userAuth(HttpServletRequest request);
+
     /**
      * 用户登录（微信开放平台）
      *
