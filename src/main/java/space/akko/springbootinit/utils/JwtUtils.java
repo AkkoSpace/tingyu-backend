@@ -5,7 +5,11 @@ import cn.hutool.core.date.DateTime;
 import cn.hutool.jwt.JWT;
 import cn.hutool.jwt.JWTUtil;
 import cn.hutool.jwt.RegisteredPayload;
+import org.apache.commons.lang3.StringUtils;
+import space.akko.springbootinit.common.ErrorCode;
+import space.akko.springbootinit.exception.BusinessException;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.Map;
 
 /**
@@ -58,5 +62,29 @@ public class JwtUtils {
      */
     public static JWT parseToken(String token) {
         return JWTUtil.parseToken(token);
+    }
+
+    /**
+     * 格式化 Header
+     *
+     * @param request 请求
+     * @return token
+     */
+    public static String formatHeaderToToken(HttpServletRequest request) {
+        // 获取返回的 token
+        String token = request.getHeader("Authorization");
+        // 去掉 Bearer
+        if (token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+        // 判断 token 是否为空
+        if (StringUtils.isBlank(token)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "未登录");
+        }
+        // 校验 token
+        if (!JwtUtils.verifyToken(token)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "Token 异常");
+        }
+        return token;
     }
 }

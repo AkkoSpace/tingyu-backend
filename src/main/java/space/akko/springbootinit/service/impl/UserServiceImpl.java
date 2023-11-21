@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.common.bean.WxOAuth2UserInfo;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
@@ -30,10 +29,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static space.akko.springbootinit.constant.CommonConstant.TOKEN_TYPE_ACCESS;
-import static space.akko.springbootinit.constant.CommonConstant.TOKEN_TYPE_REFRESH;
+import static space.akko.springbootinit.constant.CommonConstant.*;
+import static space.akko.springbootinit.constant.Number.NUMBER_SEVEN;
 import static space.akko.springbootinit.constant.UserConstant.USER_LOGIN_STATE;
 
 /**
@@ -47,8 +47,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * 盐值，混淆密码
      */
     private static final String SALT = "tingyu";
-    @Autowired
-    StringRedisTemplate stringRedisTemplate;
+    final StringRedisTemplate stringRedisTemplate;
+
+    public UserServiceImpl(StringRedisTemplate stringRedisTemplate) {
+        this.stringRedisTemplate = stringRedisTemplate;
+    }
 
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
@@ -117,26 +120,36 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         map.put("id", user.getId());
         map.put("userRole", user.getUserRole());
         String refreshToken = JwtUtils.generateToken(TOKEN_TYPE_REFRESH, map);
-        // 4. 将 refreshToken 存入 redis
-        this.stringRedisTemplate.opsForValue().set(CommonConstant.REFRESH_TOKEN_PREFIX + user.getId(), refreshToken, 7, TimeUnit.DAYS);
+        // 4. 将 refreshToken 存入 redis, 设置过期时间为 7 天
+        stringRedisTemplate.opsForValue().set(CommonConstant.REFRESH_TOKEN_PREFIX + user.getId(), refreshToken, NUMBER_SEVEN, TimeUnit.DAYS);
         return JwtUtils.generateToken(TOKEN_TYPE_ACCESS, map);
     }
 
     @Override
     public String userAuth(HttpServletRequest request) {
-        // 获取返回的 token
-        String token = request.getHeader("Authorization");
-        // 去掉 Bearer
-        if (token.startsWith("Bearer ")) {
-            token = token.substring(7);
-        }
-        // 判断 token 是否为空
-        if (StringUtils.isBlank(token)) {
+        String token = JwtUtils.formatHeaderToToken(request);
+        Object id = JwtUtils.parseToken(token).getPayload("id");
+        Object userRole = JwtUtils.parseToken(token).getPayload("userRole");
+        String tokenKey = REFRESH_TOKEN_PREFIX + id;
+        // 如果 Redis 中不存在 refreshToken
+        if (Boolean.FALSE.equals(stringRedisTemplate.hasKey(tokenKey))) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "未登录");
-        }
-        // 校验 token
-        if (!JwtUtils.verifyToken(token)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "Token 异常");
+        } else {
+            // 如果存在则取出, 并校验是否过期
+            String refreshToken = stringRedisTemplate.opsForValue().get(tokenKey);
+            // TODO cast err
+            Long expireTime = (Long) JwtUtils.parseToken(refreshToken).getPayload("exp");
+            if (expireTime == null) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "Token 异常");
+            } else if (expireTime < System.currentTimeMillis()) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "Token 已过期");
+            } else {
+                // 生成新的 accessToken
+                Map<String, Object> map = new HashMap<>();
+                map.put("id", id);
+                map.put("userRole", userRole);
+                return JwtUtils.generateToken(TOKEN_TYPE_ACCESS, map);
+            }
         }
     }
 
@@ -180,20 +193,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public User getLoginUser(HttpServletRequest request) {
-        // 获取返回的 token
-        String token = request.getHeader("Authorization");
-        // 去掉 Bearer
-        if (token.startsWith("Bearer ")) {
-            token = token.substring(7);
-        }
-        // 判断 token 是否为空
-        if (StringUtils.isBlank(token)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "未登录");
-        }
-        // 校验 token
-        if (!JwtUtils.verifyToken(token)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "Token 异常");
-        }
+        String token = JwtUtils.formatHeaderToToken(request);
         // 解析 token
         JWT jwt = JwtUtils.parseToken(token);
         // 根据 token 中的 id 查询用户
@@ -256,12 +256,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public boolean userLogout(HttpServletRequest request) {
-        // 从请求中获取Authorization信息
-        System.out.println("request.getHeader(Authorization): " + request.getHeader("Authorization"));
-        String token = request.getHeader("Authorization");
+        String token = JwtUtils.formatHeaderToToken(request);
+        String tokenKey = REFRESH_TOKEN_PREFIX + JwtUtils.parseToken(token).getPayload("id");
         if (StringUtils.isBlank(token)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "未登录");
         } else {
+            // 删除 redis 中的 refreshToken
+            stringRedisTemplate.delete(tokenKey);
             return true;
         }
     }

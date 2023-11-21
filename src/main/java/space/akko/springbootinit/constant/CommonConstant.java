@@ -15,9 +15,18 @@ public interface CommonConstant {
      */
     String SORT_ORDER_DESC = " descend";
 
+    /**
+     * 令牌类型
+     */
     String TOKEN_TYPE_ACCESS = "access";
     String TOKEN_TYPE_REFRESH = "refresh";
 
+
+    /**
+     * 令牌前缀
+     */
     String REFRESH_TOKEN_PREFIX = "refresh_token_";
+
+
 
 }
