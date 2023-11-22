@@ -137,11 +137,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         } else {
             // 如果存在则取出, 并校验是否过期
             String refreshToken = stringRedisTemplate.opsForValue().get(tokenKey);
-            // TODO cast err
-            Long expireTime = (Long) JwtUtils.parseToken(refreshToken).getPayload("exp");
-            if (expireTime == null) {
-                throw new BusinessException(ErrorCode.PARAMS_ERROR, "Token 异常");
-            } else if (expireTime < System.currentTimeMillis()) {
+            Object expireTime = JwtUtils.parseToken(refreshToken).getPayload("exp");
+            // 将 expireTime 从 Object 转为 Long
+            long expireTimeLong = Long.parseLong(expireTime.toString());
+            if (expireTimeLong < System.currentTimeMillis() / 1000) {
                 throw new BusinessException(ErrorCode.PARAMS_ERROR, "Token 已过期");
             } else {
                 // 生成新的 accessToken
