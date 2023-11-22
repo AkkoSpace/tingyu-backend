@@ -88,6 +88,12 @@ public class UserController {
         return ResultUtils.success(token);
     }
 
+    @PostMapping("/auth")
+    public BaseResponse<String> userAuth(HttpServletRequest request) {
+        String token = userService.userAuth(request);
+        return ResultUtils.success(token);
+    }
+
     /**
      * 用户登录（微信开放平台）
      */

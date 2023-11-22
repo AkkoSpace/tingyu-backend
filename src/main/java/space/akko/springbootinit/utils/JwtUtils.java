@@ -5,7 +5,11 @@ import cn.hutool.core.date.DateTime;
 import cn.hutool.jwt.JWT;
 import cn.hutool.jwt.JWTUtil;
 import cn.hutool.jwt.RegisteredPayload;
+import org.apache.commons.lang3.StringUtils;
+import space.akko.springbootinit.common.ErrorCode;
+import space.akko.springbootinit.exception.BusinessException;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.Map;
 
 /**
@@ -19,13 +23,18 @@ public class JwtUtils {
     /**
      * 生成 JWT
      *
-     * @param map 自定义信息
+     * @param payload 载荷
      * @return token
      */
 
-    public static String generateToken(Map<String, Object> payload) {
+    public static String generateToken(String type, Map<String, Object> payload) {
         DateTime now = DateTime.now();
-        DateTime newTime = now.offsetNew(DateField.MINUTE, 10);
+        DateTime newTime = DateTime.now();
+        if ("access".equals(type)) {
+            newTime = now.offsetNew(DateField.MINUTE, 10);
+        } else if ("refresh".equals(type)) {
+            newTime = now.offsetNew(DateField.HOUR, 24 * 7);
+        }
         // 签发时间
         payload.put(RegisteredPayload.ISSUED_AT, now);
         // 过期时间
@@ -53,5 +62,29 @@ public class JwtUtils {
      */
     public static JWT parseToken(String token) {
         return JWTUtil.parseToken(token);
+    }
+
+    /**
+     * 格式化 Header
+     *
+     * @param request 请求
+     * @return token
+     */
+    public static String formatHeaderToToken(HttpServletRequest request) {
+        // 获取返回的 token
+        String token = request.getHeader("Authorization");
+        // 去掉 Bearer
+        if (token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+        // 判断 token 是否为空
+        if (StringUtils.isBlank(token)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "未登录");
+        }
+        // 校验 token
+        if (!JwtUtils.verifyToken(token)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "Token 异常");
+        }
+        return token;
     }
 }
