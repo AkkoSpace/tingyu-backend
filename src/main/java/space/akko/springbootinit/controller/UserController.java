@@ -22,6 +22,7 @@ import space.akko.springbootinit.model.entity.User;
 import space.akko.springbootinit.model.vo.LoginUserVO;
 import space.akko.springbootinit.model.vo.UserVO;
 import space.akko.springbootinit.service.UserService;
+import space.akko.springbootinit.utils.JwtUtils;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
@@ -175,13 +176,16 @@ public class UserController {
      * @return
      */
     @PostMapping("/delete")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> deleteUser(@RequestBody DeleteRequest deleteRequest, HttpServletRequest request) {
         if (deleteRequest == null || deleteRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        boolean b = userService.removeById(deleteRequest.getId());
-        return ResultUtils.success(b);
+        if (deleteRequest.getId().equals(JwtUtils.parseToken(JwtUtils.formatHeaderToToken(request)).getPayload("id"))) {
+            boolean b = userService.removeById(deleteRequest.getId());
+            return ResultUtils.success(b);
+        } else {
+            throw new BusinessException(ErrorCode.FORBIDDEN_ERROR);
+        }
     }
 
     /**
