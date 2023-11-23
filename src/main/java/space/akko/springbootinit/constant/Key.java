@@ -1,0 +1,8 @@
+package space.akko.springbootinit.constant;
+
+/**
+ * 通用常量
+ */
+public interface Key {
+    String PRIVATE_KEY = "MIIBVAIBADANBgkqhkiG9w0BAQEFAASCAT4wggE6AgEAAkEApjx3VBNdtIYDjRZOF4ivmaMkbsKasxKLor/1EN1y17ONV8fYT/FKGzqym/vjvg94tiFv08uISZJTzYivrmtf3wIDAQABAkBbLOTiBzEo9yvxcR9pxv1RDerImRHST8SoghI+qsb3SM/g3ndS5TpYbMbHuRRXveRrxlOcNdkHzTuozD7nP1rBAiEA3EDqdAdeajmHb4faKI+Fr2j3D/o6m04vgfLogszGkX8CIQDBNz0qumS6vF2rIJxJM+RtQIaZ+co0yAGO/EN2nnehoQIgXpQJmVVot5iIjd36Uhx/PXmHTfcXn4UNZXHXYgNo6SUCIQCb9yES6p8A9aiOyKYfmRnc7uc4R6Bn9sL7TrqOd+CNwQIgU93qIkCkIL8QbgFWWXhfEfYLV1WnThfIXifzxggI4OQ=";
+}

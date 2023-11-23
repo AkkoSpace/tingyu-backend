@@ -1,5 +1,7 @@
 package space.akko.springbootinit.controller;
 
+import cn.hutool.crypto.asymmetric.KeyType;
+import cn.hutool.crypto.asymmetric.RSA;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.common.bean.WxOAuth2UserInfo;
@@ -28,6 +30,8 @@ import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.util.List;
+
+import static space.akko.springbootinit.constant.Key.PRIVATE_KEY;
 
 /**
  * 用户接口
@@ -64,7 +68,10 @@ public class UserController {
         if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword)) {
             return null;
         }
-        long result = userService.userRegister(userAccount, userPassword, checkPassword);
+        RSA rsa = new RSA(PRIVATE_KEY, null);
+        String decryptUserPassword = rsa.decryptStr(userPassword, KeyType.PrivateKey);
+        String decryptCheckPassword = rsa.decryptStr(checkPassword, KeyType.PrivateKey);
+        long result = userService.userRegister(userAccount, decryptUserPassword, decryptCheckPassword);
         return ResultUtils.success(result);
     }
 
@@ -85,7 +92,9 @@ public class UserController {
         if (StringUtils.isAnyBlank(userAccount, userPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        String token = userService.userLogin(userAccount, userPassword, request);
+        RSA rsa = new RSA(PRIVATE_KEY, null);
+        String decryptUserPassword = rsa.decryptStr(userPassword, KeyType.PrivateKey);
+        String token = userService.userLogin(userAccount, decryptUserPassword, request);
         return ResultUtils.success(token);
     }
 
