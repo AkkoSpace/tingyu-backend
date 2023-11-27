@@ -9,6 +9,7 @@ import me.chanjar.weixin.common.bean.oauth2.WxOAuth2AccessToken;
 import me.chanjar.weixin.mp.api.WxMpService;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
+import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
 import space.akko.springbootinit.annotation.AuthCheck;
 import space.akko.springbootinit.common.BaseResponse;
@@ -31,6 +32,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.util.List;
 
+import static space.akko.springbootinit.constant.CommonConstant.SALT;
 import static space.akko.springbootinit.constant.Key.PRIVATE_KEY;
 
 /**
@@ -302,21 +304,54 @@ public class UserController {
     /**
      * 更新个人信息
      *
-     * @param userUpdateMyRequest 用户更新请求
-     * @param request             请求
+     * @param userUpdateInfoRequest 用户更新请求
+     * @param request               请求
      * @return 是否成功
      */
-    @PostMapping("/update/my")
-    public BaseResponse<Boolean> updateMyUser(@RequestBody UserUpdateMyRequest userUpdateMyRequest, HttpServletRequest request) {
-        if (userUpdateMyRequest == null) {
+    @PostMapping("/update/info")
+    public BaseResponse<LoginUserVO> updateMyUser(@RequestBody UserUpdateInfoRequest userUpdateInfoRequest, HttpServletRequest request) {
+        if (userUpdateInfoRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         User loginUser = userService.getLoginUser(request);
         User user = new User();
-        BeanUtils.copyProperties(userUpdateMyRequest, user);
+        BeanUtils.copyProperties(userUpdateInfoRequest, user);
         user.setId(loginUser.getId());
         boolean result = userService.updateById(user);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
-        return ResultUtils.success(true);
+        return ResultUtils.success(userService.getLoginUserVO(user));
+    }
+
+    /**
+     * 更新个人密码
+     *
+     * @param userUpdatePasswordRequest 用户更新密码请求
+     * @param request                   请求
+     * @return 是否成功
+     */
+    @PostMapping("/update/password")
+    public BaseResponse<Boolean> updateMyPassword(@RequestBody UserUpdatePasswordRequest userUpdatePasswordRequest, HttpServletRequest request) {
+        if (userUpdatePasswordRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        String oldPassword = userUpdatePasswordRequest.getOldPassword();
+        RSA rsa = new RSA(PRIVATE_KEY, null);
+        String decryptOldPassword = rsa.decryptStr(oldPassword, KeyType.PrivateKey);
+        String encryptOldPassword = DigestUtils.md5DigestAsHex((SALT + decryptOldPassword).getBytes());
+        User loginUser = userService.getLoginUser(request);
+        if (!loginUser.getUserPassword().equals(encryptOldPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        } else {
+            String newPassword = userUpdatePasswordRequest.getNewPassword();
+            String decryptNewPassword = rsa.decryptStr(newPassword, KeyType.PrivateKey);
+            String encryptNewPassword = DigestUtils.md5DigestAsHex((SALT + decryptNewPassword).getBytes());
+            if (loginUser.getUserPassword().equals(encryptNewPassword)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR);
+            }
+            loginUser.setUserPassword(encryptNewPassword);
+            boolean result = userService.updateById(loginUser);
+            ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+            return ResultUtils.success(true);
+        }
     }
 }
