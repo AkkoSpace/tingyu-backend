@@ -7,17 +7,12 @@ import lombok.Data;
  * 用户更新个人信息请求
  */
 @Data
-public class UserUpdateMyRequest implements Serializable {
+public class UserUpdateInfoRequest implements Serializable {
 
     /**
      * 用户昵称
      */
     private String userName;
-
-    /**
-     * 用户头像
-     */
-    private String userAvatar;
 
     /**
      * 简介

@@ -43,10 +43,6 @@ import static space.akko.springbootinit.constant.UserConstant.USER_LOGIN_STATE;
 @Slf4j
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
-    /**
-     * 盐值，混淆密码
-     */
-    private static final String SALT = "tingyu";
     final StringRedisTemplate stringRedisTemplate;
 
     public UserServiceImpl(StringRedisTemplate stringRedisTemplate) {

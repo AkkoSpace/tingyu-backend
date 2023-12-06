@@ -1,5 +1,7 @@
 package space.akko.springbootinit.controller;
 
+import cn.hutool.crypto.asymmetric.KeyType;
+import cn.hutool.crypto.asymmetric.RSA;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.common.bean.WxOAuth2UserInfo;
@@ -7,6 +9,7 @@ import me.chanjar.weixin.common.bean.oauth2.WxOAuth2AccessToken;
 import me.chanjar.weixin.mp.api.WxMpService;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
+import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
 import space.akko.springbootinit.annotation.AuthCheck;
 import space.akko.springbootinit.common.BaseResponse;
@@ -22,11 +25,15 @@ import space.akko.springbootinit.model.entity.User;
 import space.akko.springbootinit.model.vo.LoginUserVO;
 import space.akko.springbootinit.model.vo.UserVO;
 import space.akko.springbootinit.service.UserService;
+import space.akko.springbootinit.utils.JwtUtils;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.util.List;
+
+import static space.akko.springbootinit.constant.CommonConstant.SALT;
+import static space.akko.springbootinit.constant.Key.PRIVATE_KEY;
 
 /**
  * 用户接口
@@ -49,8 +56,8 @@ public class UserController {
     /**
      * 用户注册
      *
-     * @param userRegisterRequest
-     * @return
+     * @param userRegisterRequest 用户注册请求
+     * @return 用户 id
      */
     @PostMapping("/register")
     public BaseResponse<Long> userRegister(@RequestBody UserRegisterRequest userRegisterRequest) {
@@ -63,16 +70,19 @@ public class UserController {
         if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword)) {
             return null;
         }
-        long result = userService.userRegister(userAccount, userPassword, checkPassword);
+        RSA rsa = new RSA(PRIVATE_KEY, null);
+        String decryptUserPassword = rsa.decryptStr(userPassword, KeyType.PrivateKey);
+        String decryptCheckPassword = rsa.decryptStr(checkPassword, KeyType.PrivateKey);
+        long result = userService.userRegister(userAccount, decryptUserPassword, decryptCheckPassword);
         return ResultUtils.success(result);
     }
 
     /**
      * 用户登录
      *
-     * @param userLoginRequest
-     * @param request
-     * @return
+     * @param userLoginRequest 用户登录请求
+     * @param request          请求
+     * @return token
      */
     @PostMapping("/login")
     public BaseResponse<String> userLogin(@RequestBody UserLoginRequest userLoginRequest, HttpServletRequest request) {
@@ -84,10 +94,18 @@ public class UserController {
         if (StringUtils.isAnyBlank(userAccount, userPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        String token = userService.userLogin(userAccount, userPassword, request);
+        RSA rsa = new RSA(PRIVATE_KEY, null);
+        String decryptUserPassword = rsa.decryptStr(userPassword, KeyType.PrivateKey);
+        String token = userService.userLogin(userAccount, decryptUserPassword, request);
         return ResultUtils.success(token);
     }
 
+    /**
+     * 验证用户
+     *
+     * @param request 请求
+     * @return token
+     */
     @PostMapping("/auth")
     public BaseResponse<String> userAuth(HttpServletRequest request) {
         String token = userService.userAuth(request);
@@ -96,6 +114,9 @@ public class UserController {
 
     /**
      * 用户登录（微信开放平台）
+     *
+     * @param request  请求
+     * @param response 响应
      */
     @GetMapping("/login/wx_open")
     public BaseResponse<LoginUserVO> userLoginByWxOpen(HttpServletRequest request, HttpServletResponse response, @RequestParam("code") String code) {
@@ -119,8 +140,8 @@ public class UserController {
     /**
      * 用户注销
      *
-     * @param request
-     * @return
+     * @param request 请求
+     * @return 是否成功
      */
     @PostMapping("/logout")
     public BaseResponse<Boolean> userLogout(HttpServletRequest request) {
@@ -134,8 +155,8 @@ public class UserController {
     /**
      * 获取当前登录用户信息
      *
-     * @param request
-     * @return
+     * @param request 请求
+     * @return 当前登录用户信息
      */
     @GetMapping("/info")
     public BaseResponse<LoginUserVO> getLoginUser(HttpServletRequest request) {
@@ -150,9 +171,9 @@ public class UserController {
     /**
      * 创建用户
      *
-     * @param userAddRequest
-     * @param request
-     * @return
+     * @param userAddRequest 用户创建请求
+     * @param request        请求
+     * @return 用户 id
      */
     @PostMapping("/add")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
@@ -170,26 +191,29 @@ public class UserController {
     /**
      * 删除用户
      *
-     * @param deleteRequest
-     * @param request
-     * @return
+     * @param deleteRequest 用户删除请求
+     * @param request       请求
+     * @return 是否成功
      */
     @PostMapping("/delete")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> deleteUser(@RequestBody DeleteRequest deleteRequest, HttpServletRequest request) {
         if (deleteRequest == null || deleteRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        boolean b = userService.removeById(deleteRequest.getId());
-        return ResultUtils.success(b);
+        if (deleteRequest.getId().equals(JwtUtils.parseToken(JwtUtils.formatHeaderToToken(request)).getPayload("id"))) {
+            boolean b = userService.removeById(deleteRequest.getId());
+            return ResultUtils.success(b);
+        } else {
+            throw new BusinessException(ErrorCode.FORBIDDEN_ERROR);
+        }
     }
 
     /**
      * 更新用户
      *
-     * @param userUpdateRequest
-     * @param request
-     * @return
+     * @param userUpdateRequest 用户更新请求
+     * @param request           请求
+     * @return 是否成功
      */
     @PostMapping("/update")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
@@ -207,9 +231,9 @@ public class UserController {
     /**
      * 根据 id 获取用户（仅管理员）
      *
-     * @param id
-     * @param request
-     * @return
+     * @param id      用户 id
+     * @param request 请求
+     * @return 用户
      */
     @GetMapping("/get")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
@@ -225,9 +249,9 @@ public class UserController {
     /**
      * 根据 id 获取包装类
      *
-     * @param id
-     * @param request
-     * @return
+     * @param id      用户 id
+     * @param request 请求
+     * @return 用户
      */
     @GetMapping("/get/vo")
     public BaseResponse<UserVO> getUserVOById(long id, HttpServletRequest request) {
@@ -239,9 +263,9 @@ public class UserController {
     /**
      * 分页获取用户列表（仅管理员）
      *
-     * @param userQueryRequest
-     * @param request
-     * @return
+     * @param userQueryRequest 用户查询请求
+     * @param request          请求
+     * @return 用户列表
      */
     @PostMapping("/list/page")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
@@ -255,9 +279,9 @@ public class UserController {
     /**
      * 分页获取用户封装列表
      *
-     * @param userQueryRequest
-     * @param request
-     * @return
+     * @param userQueryRequest 用户查询请求
+     * @param request          请求
+     * @return 用户列表
      */
     @PostMapping("/list/page/vo")
     public BaseResponse<Page<UserVO>> listUserVOByPage(@RequestBody UserQueryRequest userQueryRequest, HttpServletRequest request) {
@@ -280,21 +304,54 @@ public class UserController {
     /**
      * 更新个人信息
      *
-     * @param userUpdateMyRequest
-     * @param request
-     * @return
+     * @param userUpdateInfoRequest 用户更新请求
+     * @param request               请求
+     * @return 是否成功
      */
-    @PostMapping("/update/my")
-    public BaseResponse<Boolean> updateMyUser(@RequestBody UserUpdateMyRequest userUpdateMyRequest, HttpServletRequest request) {
-        if (userUpdateMyRequest == null) {
+    @PostMapping("/update/info")
+    public BaseResponse<LoginUserVO> updateMyUser(@RequestBody UserUpdateInfoRequest userUpdateInfoRequest, HttpServletRequest request) {
+        if (userUpdateInfoRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         User loginUser = userService.getLoginUser(request);
         User user = new User();
-        BeanUtils.copyProperties(userUpdateMyRequest, user);
+        BeanUtils.copyProperties(userUpdateInfoRequest, user);
         user.setId(loginUser.getId());
         boolean result = userService.updateById(user);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
-        return ResultUtils.success(true);
+        return ResultUtils.success(userService.getLoginUserVO(user));
+    }
+
+    /**
+     * 更新个人密码
+     *
+     * @param userUpdatePasswordRequest 用户更新密码请求
+     * @param request                   请求
+     * @return 是否成功
+     */
+    @PostMapping("/update/password")
+    public BaseResponse<Boolean> updateMyPassword(@RequestBody UserUpdatePasswordRequest userUpdatePasswordRequest, HttpServletRequest request) {
+        if (userUpdatePasswordRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        String oldPassword = userUpdatePasswordRequest.getOldPassword();
+        RSA rsa = new RSA(PRIVATE_KEY, null);
+        String decryptOldPassword = rsa.decryptStr(oldPassword, KeyType.PrivateKey);
+        String encryptOldPassword = DigestUtils.md5DigestAsHex((SALT + decryptOldPassword).getBytes());
+        User loginUser = userService.getLoginUser(request);
+        if (!loginUser.getUserPassword().equals(encryptOldPassword)) {
+            throw new BusinessException(ErrorCode.PASSWORD_ERROR);
+        } else {
+            String newPassword = userUpdatePasswordRequest.getNewPassword();
+            String decryptNewPassword = rsa.decryptStr(newPassword, KeyType.PrivateKey);
+            String encryptNewPassword = DigestUtils.md5DigestAsHex((SALT + decryptNewPassword).getBytes());
+            if (loginUser.getUserPassword().equals(encryptNewPassword)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR);
+            }
+            loginUser.setUserPassword(encryptNewPassword);
+            boolean result = userService.updateById(loginUser);
+            ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+            return ResultUtils.success(true);
+        }
     }
 }

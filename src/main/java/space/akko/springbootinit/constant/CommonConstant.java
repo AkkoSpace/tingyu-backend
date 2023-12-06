@@ -6,6 +6,11 @@ package space.akko.springbootinit.constant;
 public interface CommonConstant {
 
     /**
+     * 盐值
+     */
+    String SALT = "tingyu";
+
+    /**
      * 升序
      */
     String SORT_ORDER_ASC = "ascend";
