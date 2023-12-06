@@ -340,7 +340,7 @@ public class UserController {
         String encryptOldPassword = DigestUtils.md5DigestAsHex((SALT + decryptOldPassword).getBytes());
         User loginUser = userService.getLoginUser(request);
         if (!loginUser.getUserPassword().equals(encryptOldPassword)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+            throw new BusinessException(ErrorCode.PASSWORD_ERROR);
         } else {
             String newPassword = userUpdatePasswordRequest.getNewPassword();
             String decryptNewPassword = rsa.decryptStr(newPassword, KeyType.PrivateKey);
